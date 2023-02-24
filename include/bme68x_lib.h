@@ -58,7 +58,7 @@ typedef struct bme68x_heatr_conf	bme68x_heatr_conf_t;
 
 typedef struct {
 	uint8_t i2c_addr;
-	i2c_config_t * i2c_conf;
+	i2c_config_t i2c_conf;
 	int i2c_num;
 } i2c_t;
 

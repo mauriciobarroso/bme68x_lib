@@ -463,9 +463,9 @@ static int8_t spi_read(uint8_t reg_addr, uint8_t * reg_data, uint32_t length,
 }
 
 static esp_err_t i2c_init(i2c_t * i2c) {
-  i2c_param_config(i2c->i2c_num, i2c->i2c_conf);
+  i2c_param_config(i2c->i2c_num, &i2c->i2c_conf);
 
-  return i2c_driver_install(i2c->i2c_num, i2c->i2c_conf->mode, 0, 0, 0);
+  return i2c_driver_install(i2c->i2c_num, i2c->i2c_conf.mode, 0, 0, 0);
 }
 
 static int8_t i2c_write(uint8_t reg_addr, const uint8_t * reg_data,
