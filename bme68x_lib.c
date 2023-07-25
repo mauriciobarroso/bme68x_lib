@@ -88,8 +88,6 @@ static int8_t spi_write(uint8_t reg_addr, const uint8_t * reg_data,
 static int8_t spi_read(uint8_t reg_addr, uint8_t * reg_data, uint32_t length,
 		void * intf_ptr);
 
-static esp_err_t i2c_init(i2c_t * i2c);
-
 /**
  * @brief Function that implements the default I2C write transaction
  *
@@ -120,8 +118,10 @@ static int8_t i2c_read(uint8_t reg_addr, uint8_t * reg_data, uint32_t length,
 /**
  * @brief Function to initialize a BME68x instance
  */
-esp_err_t bme68x_lib_init(bme68x_lib_t * const me, void * arg, bme68x_intf_t intf) {
+esp_err_t bme68x_lib_init(bme68x_lib_t * const me, void *arg, bme68x_intf_t intf) {
 	ESP_LOGI(TAG, "Initializing BME688 instance...");
+
+	esp_err_t ret = ESP_OK;
 
 	me->status = BME68X_OK;
 	memset(&me->bme6, 0, sizeof(me->bme6));
@@ -134,15 +134,23 @@ esp_err_t bme68x_lib_init(bme68x_lib_t * const me, void * arg, bme68x_intf_t int
 
 	/*  */
 	if (intf == BME68X_I2C_INTF) {
-		me->comm.i2c = (i2c_t *)arg;
-		ESP_ERROR_CHECK(i2c_init(me->comm.i2c));
+		i2c_bus_t *i2c_bus = (i2c_bus_t *)arg;
+
+		ret = i2c_bus_add_dev(i2c_bus, BME68X_I2C_ADDR_LOW, "bme688", NULL, NULL);
+
+		if (ret != ESP_OK) {
+			ESP_LOGE(TAG, "Failed to add device");
+			return ret;
+		}
+
 		me->bme6.read = i2c_read;
 		me->bme6.write = i2c_write;
+
+		/**/
+		me->comm.i2c_dev = &i2c_bus->devs.dev[i2c_bus->devs.num - 1]; /* todo: write function to get the dev from name */
 	}
 	else {
-		me->comm.spi = (spi_t *)arg;
-		me->bme6.read = spi_read;
-		me->bme6.write = spi_write;
+		// todo: implemente SPI initialization
 	}
 
 	me->bme6.intf = intf;
@@ -462,92 +470,18 @@ static int8_t spi_read(uint8_t reg_addr, uint8_t * reg_data, uint32_t length,
 	return BME68X_OK;
 }
 
-static esp_err_t i2c_init(i2c_t * i2c) {
-  i2c_param_config(i2c->i2c_num, &i2c->i2c_conf);
-
-  return i2c_driver_install(i2c->i2c_num, i2c->i2c_conf.mode, 0, 0, 0);
+static int8_t i2c_read(uint8_t reg_addr, uint8_t *reg_data,
+		uint32_t data_len, void *intf) {
+	bme68x_scomm_t *comm = (bme68x_scomm_t *)intf;
+printf("ok\r\n");
+	return comm->i2c_dev->read(&reg_addr, 1, reg_data, data_len, comm->i2c_dev);
 }
 
-static int8_t i2c_write(uint8_t reg_addr, const uint8_t * reg_data,
-		uint32_t length, void * intf_ptr) {
-  uint32_t i;
-	esp_err_t ret = ESP_OK;
-	int8_t rslt = BME68X_OK;
-	bme68x_scomm_t * comm = NULL;
+static int8_t i2c_write(uint8_t reg_addr, const uint8_t *reg_data,
+		uint32_t data_len, void *intf) {
+	bme68x_scomm_t *comm = (bme68x_scomm_t *)intf;
 
-#ifdef BME68X_I2C_BUFFER_SIZE
-	if (length + 1 > BME68X_I2C_BUFFER_SIZE) {
-		return BME68X_E_COM_FAIL;
-	}
-#endif
-
-	if (intf_ptr) {
-		comm = (bme68x_scomm_t *)intf_ptr;
-
-		/* I2C write */
-    i2c_cmd_handle_t handle = i2c_cmd_link_create();
-    assert (handle != NULL);
-
-    ret = i2c_master_start(handle);
-    if (ret != ESP_OK) {
-    	i2c_cmd_link_delete_static(handle);
-    }
-
-    ret = i2c_master_write_byte(handle, comm->i2c->i2c_addr << 1 | I2C_MASTER_WRITE, true);
-    if (ret != ESP_OK) {
-    	i2c_cmd_link_delete_static(handle);
-    }
-
-		ret = i2c_master_write_byte(handle, reg_addr, true);
-
-    for (i = 0; i < length; i++) {
-//      uint8_t write_buf[2] = {reg_addr, reg_data[i]};
-//			ret = i2c_master_write(handle, write_buf, sizeof(write_buf), true);
-    	ret = i2c_master_write_byte(handle, reg_data[i], true);
-    }
-
-    i2c_master_stop(handle);
-    ret = i2c_master_cmd_begin(comm->i2c->i2c_num, handle, 1000 / portTICK_PERIOD_MS);
-
-    i2c_cmd_link_delete(handle);
-
-    if (ret != ESP_OK) {
-    	rslt = BME68X_E_COM_FAIL;
-    }
-	}
-	else {
-		rslt = BME68X_E_NULL_PTR;
-	}
-
-	return rslt;
-}
-
-static int8_t i2c_read(uint8_t reg_addr, uint8_t * reg_data, uint32_t length,
-		void * intf_ptr) {
-	esp_err_t ret = ESP_OK;
-	int8_t rslt = BME68X_OK;
-	bme68x_scomm_t * comm = NULL;
-
-#ifdef BME68X_I2C_BUFFER_SIZE
-	if (length > BME68X_I2C_BUFFER_SIZE) {
-		return BME68X_E_COM_FAIL;
-	}
-#endif
-
-	if (intf_ptr) {
-		comm = (bme68x_scomm_t *)intf_ptr;
-
-    ret = i2c_master_write_read_device(comm->i2c->i2c_num, comm->i2c->i2c_addr, &reg_addr, 1, reg_data, length, 1000 / portTICK_PERIOD_MS);
-
-    if (ret != ESP_OK) {
-    	rslt = BME68X_E_COM_FAIL;
-    }
-	}
-	else {
-		rslt = BME68X_E_NULL_PTR;
-	}
-
-	return rslt;
+	return comm->i2c_dev->write(&reg_addr, 1, reg_data, data_len, comm->i2c_dev);
 }
 
 /***************************** END OF FILE ************************************/

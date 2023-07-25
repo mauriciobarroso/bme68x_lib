@@ -44,9 +44,10 @@ extern "C" {
 #include <stdint.h>
 #include "driver/i2c.h"
 #include "bme68x.h"
+#include "i2c_bus.h"
 
 /* Exported macro ------------------------------------------------------------*/
-#define BME68X_ERROR	INT8_C(-1)
+#define BME68X_ERROR		INT8_C(-1)
 #define BME68X_WARNING	INT8_C(1)
 
 /* Exported typedef ----------------------------------------------------------*/
@@ -57,18 +58,8 @@ typedef struct bme68x_conf				bme68x_conf_t;
 typedef struct bme68x_heatr_conf	bme68x_heatr_conf_t;
 
 typedef struct {
-	uint8_t i2c_addr;
-	i2c_config_t i2c_conf;
-	int i2c_num;
-} i2c_t;
-
-typedef struct {
-	uint8_t cs;
-} spi_t;
-
-typedef struct {
-	i2c_t * i2c;
-	spi_t * spi;
+	i2c_bus_dev_t *i2c_dev;
+	// todo: implement SPI interface
 } bme68x_scomm_t;
 
 typedef struct {
@@ -91,12 +82,12 @@ typedef struct {
  *
  * @param me   : Pointer to a structure instance of bme68x_lib_t
  * @param arg  : Pointer to a structure with the data to initialize the sensor
- *               as a I2C or SPI device
+ *               attach the device to a bus
  * @param intf : Type or device, can be I2C or SPI
  *
  * @return Data at that register
  */
-esp_err_t bme68x_lib_init(bme68x_lib_t * const me, void * arg, bme68x_intf_t intf);
+esp_err_t bme68x_lib_init(bme68x_lib_t *const me, void *arg, bme68x_intf_t intf);
 
 /**
  * @brief Function to read a register
@@ -106,7 +97,7 @@ esp_err_t bme68x_lib_init(bme68x_lib_t * const me, void * arg, bme68x_intf_t int
  *
  * @return Data at that register
  */
-uint8_t bme68x_lib_read_single_reg(bme68x_lib_t * const me, uint8_t reg_addr);
+uint8_t bme68x_lib_read_single_reg(bme68x_lib_t* const me, uint8_t reg_addr);
 
 /**
  * @brief Function to read multiple registers
@@ -116,7 +107,7 @@ uint8_t bme68x_lib_read_single_reg(bme68x_lib_t * const me, uint8_t reg_addr);
  * @param reg_data : Pointer to store the data
  * @param length   : Number of registers to read
  */
-void bme68x_lib_read_multiple_reg(bme68x_lib_t * const me, uint8_t reg_addr, uint8_t * reg_data, uint32_t length);
+void bme68x_lib_read_multiple_reg(bme68x_lib_t *const me, uint8_t reg_addr, uint8_t * reg_data, uint32_t length);
 
 /**
  * @brief Function to write data to a register
