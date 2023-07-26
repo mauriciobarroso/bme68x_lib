@@ -60,7 +60,7 @@ const static char * TAG = "bme688";
  * @param period_us : Duration of the delay in microseconds
  * @param intf_ptr  : Pointer to the interface descriptor
  */
-static void delay_us(uint32_t period_us, void * intf_ptr);
+static void delay_us(uint32_t period_us, void *intf_ptr);
 
 /**
  * @brief Function that implements the default SPI write transaction
@@ -72,8 +72,8 @@ static void delay_us(uint32_t period_us, void * intf_ptr);
  *
  * @return 0 if successful, non-zero otherwise
  */
-static int8_t spi_write(uint8_t reg_addr, const uint8_t * reg_data,
-		uint32_t length, void * intf_ptr);
+static int8_t spi_write(uint8_t reg_addr, const uint8_t *reg_data,
+		uint32_t length, void *intf_ptr);
 
 /**
  * @brief Function that implements the default SPI read transaction
@@ -85,8 +85,8 @@ static int8_t spi_write(uint8_t reg_addr, const uint8_t * reg_data,
  *
  * @return 0 if successful, non-zero otherwise
  */
-static int8_t spi_read(uint8_t reg_addr, uint8_t * reg_data, uint32_t length,
-		void * intf_ptr);
+static int8_t spi_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t length,
+		void *intf_ptr);
 
 /**
  * @brief Function that implements the default I2C write transaction
@@ -98,8 +98,8 @@ static int8_t spi_read(uint8_t reg_addr, uint8_t * reg_data, uint32_t length,
  *
  * @return 0 if successful, non-zero otherwise
  */
-static int8_t i2c_write(uint8_t reg_addr, const uint8_t * reg_data,
-		uint32_t length, void * intf_ptr);
+static int8_t i2c_write(uint8_t reg_addr, const uint8_t *reg_data,
+		uint32_t length, void *intf_ptr);
 
 /**
  * @brief Function that implements the default I2C read transaction
@@ -111,17 +111,15 @@ static int8_t i2c_write(uint8_t reg_addr, const uint8_t * reg_data,
  *
  * @return 0 if successful, non-zero otherwise
  */
-static int8_t i2c_read(uint8_t reg_addr, uint8_t * reg_data, uint32_t length,
-		void * intf_ptr);
+static int8_t i2c_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t length,
+		void *intf_ptr);
 
 /* Exported functions --------------------------------------------------------*/
 /**
  * @brief Function to initialize a BME68x instance
  */
-esp_err_t bme68x_lib_init(bme68x_lib_t * const me, void *arg, bme68x_intf_t intf) {
+esp_err_t bme68x_lib_init(bme68x_lib_t *const me, void *arg, bme68x_intf_t intf) {
 	ESP_LOGI(TAG, "Initializing BME688 instance...");
-
-	esp_err_t ret = ESP_OK;
 
 	me->status = BME68X_OK;
 	memset(&me->bme6, 0, sizeof(me->bme6));
@@ -136,21 +134,27 @@ esp_err_t bme68x_lib_init(bme68x_lib_t * const me, void *arg, bme68x_intf_t intf
 	if (intf == BME68X_I2C_INTF) {
 		i2c_bus_t *i2c_bus = (i2c_bus_t *)arg;
 
-		ret = i2c_bus_add_dev(i2c_bus, BME68X_I2C_ADDR_LOW, "bme688", NULL, NULL);
+		/* Add device to bus */
+		esp_err_t ret = i2c_bus_add_dev(i2c_bus, BME68X_I2C_ADDR_LOW, "bme688", NULL, NULL);
 
 		if (ret != ESP_OK) {
 			ESP_LOGE(TAG, "Failed to add device");
 			return ret;
 		}
 
-		me->bme6.read = i2c_read;
-		me->bme6.write = i2c_write;
-
 		/**/
 		me->comm.i2c_dev = &i2c_bus->devs.dev[i2c_bus->devs.num - 1]; /* todo: write function to get the dev from name */
+
+		/* Print successful initialization message */
+		ESP_LOGI(TAG, "BME688 instance initialized successfully");
+
+		me->bme6.read = i2c_read;
+		me->bme6.write = i2c_write;
 	}
 	else {
-		// todo: implemente SPI initialization
+		me->comm.spi = (spi_t *)arg;
+		me->bme6.read = spi_read;
+		me->bme6.write = spi_write;
 	}
 
 	me->bme6.intf = intf;
@@ -166,7 +170,7 @@ esp_err_t bme68x_lib_init(bme68x_lib_t * const me, void *arg, bme68x_intf_t intf
 /**
  * @brief Function to read a register
  */
-uint8_t bme68x_lib_read_single_reg(bme68x_lib_t * const me, uint8_t reg_addr) {
+uint8_t bme68x_lib_read_single_reg(bme68x_lib_t *const me, uint8_t reg_addr) {
 	uint8_t reg_data;
 	bme68x_lib_read_multiple_reg(me, reg_addr, &reg_data, 1);
 
@@ -176,42 +180,42 @@ uint8_t bme68x_lib_read_single_reg(bme68x_lib_t * const me, uint8_t reg_addr) {
 /**
  * @brief Function to read multiple registers
  */
-void bme68x_lib_read_multiple_reg(bme68x_lib_t * const me, uint8_t reg_addr, uint8_t * reg_data, uint32_t length) {
+void bme68x_lib_read_multiple_reg(bme68x_lib_t *const me, uint8_t reg_addr, uint8_t *reg_data, uint32_t length) {
 	me->status = bme68x_get_regs(reg_addr, reg_data, length, &me->bme6);
 }
 
 /**
  * @brief Function to write data to a register
  */
-void bme68x_lib_write_single_reg(bme68x_lib_t * const me, uint8_t reg_addr, uint8_t reg_data) {
+void bme68x_lib_write_single_reg(bme68x_lib_t *const me, uint8_t reg_addr, uint8_t reg_data) {
 	me->status = bme68x_set_regs(&reg_addr, &reg_data, 1, &me->bme6);
 }
 
 /**
  * @brief Function to write multiple registers
  */
-void bme68x_lib_write_multiple_reg(bme68x_lib_t * const me, uint8_t * reg_addr, const uint8_t * reg_data, uint32_t length){
+void bme68x_lib_write_multiple_reg(bme68x_lib_t *const me, uint8_t *reg_addr, const uint8_t *reg_data, uint32_t length){
 	me->status = bme68x_set_regs(reg_addr, reg_data, length, &me->bme6);
 }
 
 /**
  * @brief Function to trigger a soft reset
  */
-void bme68x_lib_soft_reset(bme68x_lib_t * const me) {
+void bme68x_lib_soft_reset(bme68x_lib_t *const me) {
 	me->status = bme68x_soft_reset(&me->bme6);
 }
 
 /**
  * @brief Function to set the ambient temperature for better configuration
  */
-void bme68x_lib_set_ambient_temp(bme68x_lib_t * const me, int8_t temp) {
+void bme68x_lib_set_ambient_temp(bme68x_lib_t *const me, int8_t temp) {
 	me->bme6.amb_temp = temp;
 }
 
 /**
  * @brief Function to get the measurement duration in microseconds
  */
-uint32_t bme68x_lib_get_meas_dur(bme68x_lib_t * const me, uint8_t op_mode) {
+uint32_t bme68x_lib_get_meas_dur(bme68x_lib_t *const me, uint8_t op_mode) {
 	if (op_mode == BME68X_SLEEP_MODE) {
 		op_mode = me->last_op_mode;
 	}
@@ -222,7 +226,7 @@ uint32_t bme68x_lib_get_meas_dur(bme68x_lib_t * const me, uint8_t op_mode) {
 /**
  * @brief Function to set the operation mode
  */
-void bme68x_lib_set_op_mode(bme68x_lib_t * const me, uint8_t op_mode) {
+void bme68x_lib_set_op_mode(bme68x_lib_t *const me, uint8_t op_mode) {
 	me->status = bme68x_set_op_mode(op_mode, &me->bme6);
 
 	if ((me->status == BME68X_OK) && (op_mode != BME68X_SLEEP_MODE)) {
@@ -233,7 +237,7 @@ void bme68x_lib_set_op_mode(bme68x_lib_t * const me, uint8_t op_mode) {
 /**
  * @brief Function to get the operation mode
  */
-uint8_t bme68x_lib_get_op_mode(bme68x_lib_t * const me) {
+uint8_t bme68x_lib_get_op_mode(bme68x_lib_t *const me) {
 	uint8_t op_mode;
 
 	me->status = bme68x_get_op_mode(&op_mode, &me->bme6);
@@ -244,7 +248,7 @@ uint8_t bme68x_lib_get_op_mode(bme68x_lib_t * const me) {
 /**
  * @brief Function to get the Temperature, Pressure and Humidity over-sampling
  */
-void bme68x_lib_get_tph(bme68x_lib_t * const me, uint8_t * os_hum, uint8_t * os_temp, uint8_t * os_pres) {
+void bme68x_lib_get_tph(bme68x_lib_t *const me, uint8_t *os_hum, uint8_t *os_temp, uint8_t *os_pres) {
 	me->status = bme68x_get_conf(&me->conf, &me->bme6);
 
 	if (me->status == BME68X_OK) {
@@ -258,7 +262,7 @@ void bme68x_lib_get_tph(bme68x_lib_t * const me, uint8_t * os_hum, uint8_t * os_
  * @brief Function to set the Temperature, Pressure and Humidity over-sampling.
  * Passing no arguments sets the defaults.
  */
-void bme68x_lib_set_tph(bme68x_lib_t * const me, uint8_t os_temp, uint8_t os_pres, uint8_t os_hum) {
+void bme68x_lib_set_tph(bme68x_lib_t *const me, uint8_t os_temp, uint8_t os_pres, uint8_t os_hum) {
 	me->status = bme68x_get_conf(&me->conf, &me->bme6);
 
 	if (me->status == BME68X_OK) {
@@ -273,7 +277,7 @@ void bme68x_lib_set_tph(bme68x_lib_t * const me, uint8_t os_temp, uint8_t os_pre
 /**
  * @brief Function to get the filter configuration
  */
-uint8_t bme68x_lib_get_filter(bme68x_lib_t * const me) {
+uint8_t bme68x_lib_get_filter(bme68x_lib_t *const me) {
 	me->status = bme68x_get_conf(&me->conf, &me->bme6);
 
 	return me->conf.filter;
@@ -282,7 +286,7 @@ uint8_t bme68x_lib_get_filter(bme68x_lib_t * const me) {
 /**
  * @brief Function to set the filter configuration
  */
-void bme68x_lib_set_filter(bme68x_lib_t * const me, uint8_t filter) {
+void bme68x_lib_set_filter(bme68x_lib_t *const me, uint8_t filter) {
 	me->status = bme68x_get_conf(&me->conf, &me->bme6);
 
 	if (me->status == BME68X_OK) {
@@ -294,7 +298,7 @@ void bme68x_lib_set_filter(bme68x_lib_t * const me, uint8_t filter) {
 /**
  * @brief Function to get the sleep duration during Sequential mode
  */
-uint8_t bme68x_lib_get_seq_sleep(bme68x_lib_t * const me) {
+uint8_t bme68x_lib_get_seq_sleep(bme68x_lib_t *const me) {
 	me->status = bme68x_get_conf(&me->conf, &me->bme6);
 
 	return me->conf.odr;
@@ -303,7 +307,7 @@ uint8_t bme68x_lib_get_seq_sleep(bme68x_lib_t * const me) {
 /**
  * @brief Function to set the sleep duration during Sequential mode
  */
-void bme68x_lib_set_seq_sleep(bme68x_lib_t * const me, uint8_t odr) {
+void bme68x_lib_set_seq_sleep(bme68x_lib_t *const me, uint8_t odr) {
 	me->status = bme68x_get_conf(&me->conf, &me->bme6);
 
 	if (me->status == BME68X_OK) {
@@ -315,7 +319,7 @@ void bme68x_lib_set_seq_sleep(bme68x_lib_t * const me, uint8_t odr) {
 /**
  * @brief Function to set the heater profile for Forced mode
  */
-void bme68x_lib_set_heater_prof_for(bme68x_lib_t * const me, uint16_t temp, uint16_t dur) {
+void bme68x_lib_set_heater_prof_for(bme68x_lib_t *const me, uint16_t temp, uint16_t dur) {
 	me->heatr_conf.enable = BME68X_ENABLE;
 	me->heatr_conf.heatr_temp = temp;
 	me->heatr_conf.heatr_dur = dur;
@@ -326,7 +330,7 @@ void bme68x_lib_set_heater_prof_for(bme68x_lib_t * const me, uint16_t temp, uint
 /**
  * @brief Function to set the heater profile for Sequential mode
  */
-void bme68x_lib_set_heater_prof_seq(bme68x_lib_t * const me, uint16_t * temp, uint16_t * dur, uint8_t profile_len) {
+void bme68x_lib_set_heater_prof_seq(bme68x_lib_t *const me, uint16_t * temp, uint16_t * dur, uint8_t profile_len) {
 	me->heatr_conf.enable = BME68X_ENABLE;
 	me->heatr_conf.heatr_temp_prof = temp;
 	me->heatr_conf.heatr_dur_prof = dur;
@@ -338,7 +342,7 @@ void bme68x_lib_set_heater_prof_seq(bme68x_lib_t * const me, uint16_t * temp, ui
 /**
  * @brief Function to set the heater profile for Parallel mode
  */
-void bme68x_lib_set_heater_prof_par(bme68x_lib_t * const me, uint16_t * temp, uint16_t * mul, uint16_t shared_heatr_dur, uint8_t profile_len) {
+void bme68x_lib_set_heater_prof_par(bme68x_lib_t *const me, uint16_t * temp, uint16_t * mul, uint16_t shared_heatr_dur, uint8_t profile_len) {
 	me->heatr_conf.enable = BME68X_ENABLE;
 	me->heatr_conf.heatr_temp_prof = temp;
 	me->heatr_conf.heatr_dur_prof = mul;
@@ -351,7 +355,7 @@ void bme68x_lib_set_heater_prof_par(bme68x_lib_t * const me, uint16_t * temp, ui
 /**
  * @brief Function to fetch data from the sensor into the local buffer
  */
-uint8_t bme68x_lib_fetch_data(bme68x_lib_t * const me) {
+uint8_t bme68x_lib_fetch_data(bme68x_lib_t *const me) {
 	me->n_fields = 0;
 	me->status = bme68x_get_data(me->last_op_mode, me->sensor_data, &me->n_fields, &me->bme6);
 	me->i_fields = 0;
@@ -362,7 +366,7 @@ uint8_t bme68x_lib_fetch_data(bme68x_lib_t * const me) {
 /**
  * @brief Function to get a single data field
  */
-uint8_t bme68x_lib_get_data(bme68x_lib_t * const me, bme68x_data_t * data) {
+uint8_t bme68x_lib_get_data(bme68x_lib_t *const me, bme68x_data_t *data) {
 	if (me->last_op_mode == BME68X_FORCED_MODE) {
 		* data = me->sensor_data[0];
 	}
@@ -371,7 +375,7 @@ uint8_t bme68x_lib_get_data(bme68x_lib_t * const me, bme68x_data_t * data) {
 			/* iFields spans from 0-2 while nFields spans from
 			 * 0-3, where 0 means that there is no new data
 			 */
-			* data = me->sensor_data[me->i_fields];
+			*data = me->sensor_data[me->i_fields];
 			me->i_fields++;
 
 			/* Limit reading continuously to the last fields read */
@@ -392,21 +396,21 @@ uint8_t bme68x_lib_get_data(bme68x_lib_t * const me, bme68x_data_t * data) {
 /**
  * @brief Function to get whole sensor data
  */
-bme68x_data_t * bme68x_lib_get_all_data(bme68x_lib_t * const me) {
+bme68x_data_t *bme68x_lib_get_all_data(bme68x_lib_t *const me) {
 	return me->sensor_data;
 }
 
 /**
 * @brief Function to get the BME68x heater configuration
 */
-bme68x_heatr_conf_t get_heater_configuration(bme68x_lib_t * const me) {
+bme68x_heatr_conf_t get_heater_configuration(bme68x_lib_t *const me) {
 	return me->heatr_conf;
 }
 
 /**
  * @brief Function to retrieve the sensor's unique ID
  */
-uint32_t bme68x_lib_get_unique_id(bme68x_lib_t * const me) {
+uint32_t bme68x_lib_get_unique_id(bme68x_lib_t *const me) {
 	uint8_t id_regs[4];
 	uint32_t uid;
 
@@ -421,14 +425,14 @@ uint32_t bme68x_lib_get_unique_id(bme68x_lib_t * const me) {
 /**
  * @brief Function to get the error code of the interface functions
  */
-BME68X_INTF_RET_TYPE bme68x_lib_intf_error(bme68x_lib_t * const me) {
+BME68X_INTF_RET_TYPE bme68x_lib_intf_error(bme68x_lib_t *const me) {
 	return me->bme6.intf_rslt;
 }
 
 /**
  * @brief Function to check if an error / warning has occurred
  */
-int8_t bme68x_lib_check_status(bme68x_lib_t * const me) {
+int8_t bme68x_lib_check_status(bme68x_lib_t *const me) {
 	if (me->status < BME68X_OK) {
 		return BME68X_ERROR;
 	}
@@ -441,7 +445,7 @@ int8_t bme68x_lib_check_status(bme68x_lib_t * const me) {
 }
 
 /* Private functions ---------------------------------------------------------*/
-static void delay_us(uint32_t period_us, void * intf_ptr) {
+static void delay_us(uint32_t period_us, void *intf_ptr) {
 	(void)intf_ptr;
 	uint64_t m = (uint64_t)esp_timer_get_time();
 
@@ -460,28 +464,28 @@ static void delay_us(uint32_t period_us, void * intf_ptr) {
   }
 }
 
-static int8_t spi_write(uint8_t reg_addr, const uint8_t * reg_data,
-		uint32_t length, void * intf_ptr) {
+static int8_t spi_write(uint8_t reg_addr, const uint8_t *reg_data,
+		uint32_t length, void *intf_ptr) {
 	return BME68X_OK;
 }
 
-static int8_t spi_read(uint8_t reg_addr, uint8_t * reg_data, uint32_t length,
-		void * intf_ptr) {
+static int8_t spi_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t length,
+		void *intf_ptr) {
 	return BME68X_OK;
-}
-
-static int8_t i2c_read(uint8_t reg_addr, uint8_t *reg_data,
-		uint32_t data_len, void *intf) {
-	bme68x_scomm_t *comm = (bme68x_scomm_t *)intf;
-printf("ok\r\n");
-	return comm->i2c_dev->read(&reg_addr, 1, reg_data, data_len, comm->i2c_dev);
 }
 
 static int8_t i2c_write(uint8_t reg_addr, const uint8_t *reg_data,
-		uint32_t data_len, void *intf) {
-	bme68x_scomm_t *comm = (bme68x_scomm_t *)intf;
+		uint32_t length, void *intf_ptr) {
+	bme68x_scomm_t *comm = (bme68x_scomm_t *)intf_ptr;
 
-	return comm->i2c_dev->write(&reg_addr, 1, reg_data, data_len, comm->i2c_dev);
+	return comm->i2c_dev->write(&reg_addr, 1, reg_data, length, comm->i2c_dev);
+}
+
+static int8_t i2c_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t length,
+		void *intf_ptr) {
+	bme68x_scomm_t *comm = (bme68x_scomm_t *)intf_ptr;
+
+	return comm->i2c_dev->read(&reg_addr, 1, reg_data, length, comm->i2c_dev);
 }
 
 /***************************** END OF FILE ************************************/
