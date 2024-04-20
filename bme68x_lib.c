@@ -132,18 +132,22 @@ esp_err_t bme68x_lib_init(bme68x_lib_t *const me, void *arg, bme68x_intf_t intf)
 
 	/*  */
 	if (intf == BME68X_I2C_INTF) {
-		i2c_bus_t *i2c_bus = (i2c_bus_t *)arg;
+		i2c_master_bus_handle_t i2c_bus_handle = (i2c_master_bus_handle_t)arg;
 
-		/* Add device to bus */
-		esp_err_t ret = i2c_bus_add_dev(i2c_bus, BME68X_I2C_ADDR_LOW, "bme688", NULL, NULL);
+		/* Variable to return error code */
+		esp_err_t ret = ESP_OK;
 
-		if (ret != ESP_OK) {
-			ESP_LOGE(TAG, "Failed to add device");
+		/* Add device to I2C bus */
+		i2c_device_config_t i2c_dev_conf = {
+				.scl_speed_hz = 400000,
+				.device_address = BME68X_I2C_ADDR_LOW
+		};
+
+		if (i2c_master_bus_add_device(i2c_bus_handle, &i2c_dev_conf, &me->comm.i2c_dev) != ESP_OK) {
+			ESP_LOGE(TAG, "Failed to add device to I2C bus");
 			return ret;
 		}
 
-		/**/
-		me->comm.i2c_dev = &i2c_bus->devs.dev[i2c_bus->devs.num - 1]; /* todo: write function to get the dev from name */
 
 		/* Print successful initialization message */
 		ESP_LOGI(TAG, "BME688 instance initialized successfully");
@@ -477,15 +481,36 @@ static int8_t spi_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t length,
 static int8_t i2c_write(uint8_t reg_addr, const uint8_t *reg_data,
 		uint32_t length, void *intf_ptr) {
 	bme68x_scomm_t *comm = (bme68x_scomm_t *)intf_ptr;
+//
+//	return comm->i2c_dev->write(&reg_addr, 1, reg_data, length, comm->i2c_dev);
 
-	return comm->i2c_dev->write(&reg_addr, 1, reg_data, length, comm->i2c_dev);
+	uint8_t buf[64] = {0};
+	uint16_t buf_len = 0;
+
+	buf[buf_len++] = reg_addr;
+
+	for (uint8_t i = 0; i < length; i++) {
+		buf[buf_len++] = reg_data[i];
+	}
+
+	if (i2c_master_transmit(comm->i2c_dev, buf, buf_len, -1) != ESP_OK) {
+		return BME68X_E_COM_FAIL;
+	}
+
+	return BME68X_OK;
 }
 
 static int8_t i2c_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t length,
 		void *intf_ptr) {
 	bme68x_scomm_t *comm = (bme68x_scomm_t *)intf_ptr;
 
-	return comm->i2c_dev->read(&reg_addr, 1, reg_data, length, comm->i2c_dev);
+//	return comm->i2c_dev->read(&reg_addr, 1, reg_data, length, comm->i2c_dev);
+
+	if (i2c_master_transmit_receive(comm->i2c_dev, &reg_addr, 1, reg_data, length, -1) != ESP_OK) {
+		return BME68X_E_COM_FAIL;
+	}
+
+	return BME68X_OK;
 }
 
 /***************************** END OF FILE ************************************/

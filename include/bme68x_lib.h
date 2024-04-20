@@ -42,9 +42,8 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
-#include "driver/i2c.h"
+#include "driver/i2c_master.h"
 #include "bme68x.h"
-#include "i2c_bus.h"
 
 /* Exported macro ------------------------------------------------------------*/
 #define BME68X_ERROR	INT8_C(-1)
@@ -62,7 +61,7 @@ typedef struct {
 } spi_t;
 
 typedef struct {
-	i2c_bus_dev_t *i2c_dev;
+	i2c_master_dev_handle_t i2c_dev;
 	spi_t *spi;
 } bme68x_scomm_t;
 
